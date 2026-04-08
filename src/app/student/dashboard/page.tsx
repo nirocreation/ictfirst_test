@@ -156,7 +156,7 @@ export default function StudentDashboard() {
               ) : (
                 // IF NOT APPROVED (Pending or No History): Show Payment Button
                 <Link href="/student/payments" className="w-full py-3 bg-slate-100 text-slate-400 rounded-xl text-[9px] font-black uppercase tracking-widest text-center hover:bg-orange-100 hover:text-orange-600 transition-colors">
-                  {data?.paymentStatus === 'pending' ? 'Verification Pending...' : 'Add Payment to View'}
+                  {data?.paymentStatus === 'pending' ? 'Verification Pending...' : 'Unlock Lessons 🔒'}
                 </Link>
               )}
             </div>

@@ -25,14 +25,24 @@ export default function LessonsPage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [bookmarks, setBookmarks] = useState<number[]>([]);
+  const [paymentStatus, setPaymentStatus] = useState<string>('no_history');
 
-  // 1. Fetch Lessons & Sync Bookmarks
+  // 1. Fetch Lessons, Payments & Sync Bookmarks
   const initData = useCallback(async () => {
     try {
-      const res = await fetch('/api/student/lessons');
-      const data = await res.json();
-      if (data.success) {
-        setLessons(data.lessons as Lesson[]);
+      const [lessonsRes, payRes] = await Promise.all([
+        fetch('/api/student/lessons'),
+        fetch('/api/student/payments')
+      ]);
+
+      const lessonsData = await lessonsRes.json();
+      const payData = await payRes.json();
+
+      if (lessonsData.success) setLessons(lessonsData.lessons as Lesson[]);
+      
+      // Update payment status from the most recent record
+      if (payData.success && payData.payments?.length > 0) {
+        setPaymentStatus(payData.payments[0].status);
       }
     } catch (err) {
       console.error("Data fetch failed:", err);
@@ -49,6 +59,9 @@ export default function LessonsPage() {
   useEffect(() => {
     initData();
   }, [initData]);
+
+  // Master Access Check
+  const hasAccess = paymentStatus === 'approved';
 
   // 2. Bookmark Logic
   const toggleBookmark = (id: number) => {
@@ -83,10 +96,10 @@ export default function LessonsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans">
+    <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans select-none">
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
         
-        {/* HERO SECTION: Dynamic Grade Card */}
+        {/* HERO SECTION */}
         <div className="pt-10 mb-16">
           <div className="bg-gradient-to-br from-[#1A5683] to-[#2C7CB3] rounded-[3rem] p-10 md:p-16 text-white shadow-2xl relative overflow-hidden">
             <div className="relative z-10 max-w-xl">
@@ -111,18 +124,10 @@ export default function LessonsPage() {
                 ))}
               </div>
             </div>
-
-            {/* Avatars Decoration */}
-            <div className="hidden lg:flex absolute bottom-12 right-12 items-center -space-x-4">
-               {[1,2,3].map(i => (
-                 <div key={i} className="w-12 h-12 rounded-full border-[3px] border-[#1A5683] bg-slate-200 flex items-center justify-center text-xs text-slate-500 font-black italic">ICT</div>
-               ))}
-               <div className="w-12 h-12 rounded-full border-[3px] border-[#1A5683] bg-blue-400 flex items-center justify-center text-[10px] font-black text-white">+24</div>
-            </div>
           </div>
         </div>
 
-        {/* CONTROLS: Search & Sort */}
+        {/* CONTROLS */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 px-2">
           <div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight italic uppercase">
@@ -134,17 +139,13 @@ export default function LessonsPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row w-full lg:w-auto gap-4">
-            <div className="relative group">
-              <span className="absolute left-5 top-1/2 -translate-y-1/2 opacity-30 group-focus-within:opacity-100 transition-opacity">🔍</span>
-              <input 
-                type="text" 
-                placeholder="Find a module..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full sm:w-72 pl-12 pr-6 py-4 bg-white border border-slate-100 rounded-[1.5rem] shadow-sm outline-none focus:ring-4 focus:ring-[#1A5683]/5 font-bold text-sm"
-              />
-            </div>
-
+            <input 
+              type="text" 
+              placeholder="Find a module..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-72 px-6 py-4 bg-white border border-slate-100 rounded-[1.5rem] shadow-sm outline-none focus:ring-4 focus:ring-[#1A5683]/5 font-bold text-sm"
+            />
             <select 
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
@@ -162,9 +163,8 @@ export default function LessonsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {filteredAndSorted.length > 0 ? (
             filteredAndSorted.map((lesson) => (
-              <div key={lesson.id} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-1 transition-all group flex flex-col relative">
+              <div key={lesson.id} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 hover:shadow-2xl transition-all group flex flex-col relative overflow-hidden">
                 
-                {/* Bookmark Icon */}
                 <button 
                   onClick={() => toggleBookmark(lesson.id)}
                   className={`absolute top-8 right-8 text-xl transition-transform active:scale-125 ${bookmarks.includes(lesson.id) ? 'text-red-500' : 'text-slate-200 hover:text-red-200'}`}
@@ -172,28 +172,36 @@ export default function LessonsPage() {
                   {bookmarks.includes(lesson.id) ? '❤️' : '🤍'}
                 </button>
 
-                {/* Icon Box */}
-                <div className="w-14 h-14 bg-[#F8FAFC] text-[#1A5683] rounded-2xl flex items-center justify-center mb-8 group-hover:bg-[#1A5683] group-hover:text-white transition-colors text-2xl shadow-inner">
-                  🎬
+                <div className="w-14 h-14 bg-[#F8FAFC] text-[#1A5683] rounded-2xl flex items-center justify-center mb-8 group-hover:bg-[#1A5683] group-hover:text-white transition-colors text-2xl">
+                  {hasAccess ? '🎬' : '🔒'}
                 </div>
                 
                 <h3 className="font-black text-slate-800 mb-2 leading-tight flex-grow uppercase text-[15px] tracking-tight italic">
                   {lesson.title}
                 </h3>
                 
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.1em] mb-10">
-                  Session Recording • 128 MB
+                <p className={`text-[10px] font-bold uppercase tracking-[0.1em] mb-10 ${!hasAccess ? 'text-orange-500' : 'text-slate-400'}`}>
+                  {hasAccess ? 'Session Recording' : 'Access Restricted'}
                 </p>
 
                 <div className="flex flex-col gap-3">
-                  <Link 
-                    href={`/student/lessons/${lesson.id}`}
-                    className="w-full py-4 bg-[#1A5683] text-white rounded-2xl text-[9px] font-black uppercase tracking-widest text-center shadow-lg shadow-blue-900/20 hover:bg-slate-900 transition-all flex items-center justify-center gap-2"
-                  >
-                    View Lesson <span>⦿</span>
-                  </Link>
+                  {hasAccess ? (
+                    <Link 
+                      href={`/student/lessons/${lesson.id}`}
+                      className="w-full py-4 bg-[#1A5683] text-white rounded-2xl text-[9px] font-black uppercase tracking-widest text-center shadow-lg hover:bg-slate-900 transition-all flex items-center justify-center gap-2"
+                    >
+                      View Lesson <span>⦿</span>
+                    </Link>
+                  ) : (
+                    <Link 
+                      href="/student/payments"
+                      className="w-full py-4 bg-orange-100 text-orange-600 rounded-2xl text-[9px] font-black uppercase tracking-widest text-center hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                    >
+                      {paymentStatus === 'pending' ? 'Verifying Slip...' : 'Unlock Lesson 🔒'}
+                    </Link>
+                  )}
                   
-                  {lesson.material_id && (
+                  {lesson.material_id && hasAccess && (
                     <p className="text-center text-[9px] font-black text-slate-300 uppercase tracking-widest">
                       PDF Notes Included
                     </p>
@@ -203,9 +211,7 @@ export default function LessonsPage() {
             ))
           ) : (
             <div className="col-span-full py-32 text-center bg-white rounded-[4rem] border-2 border-dashed border-slate-100">
-              <p className="text-slate-300 font-black uppercase tracking-[0.4em] text-xs">
-                Vault Empty for this filter.
-              </p>
+              <p className="text-slate-300 font-black uppercase tracking-[0.4em] text-xs">Vault Empty</p>
             </div>
           )}
         </div>
