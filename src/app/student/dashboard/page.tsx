@@ -7,16 +7,15 @@ interface DashboardData {
   full_name: string;
   student_id: string;
   grade: number;
-  recentLesson?: string;
-  paymentStatus?: string;
+  paymentStatus?: string; // 'approved', 'pending', or 'no_history'
 }
 
 interface Lesson {
   id: number;
   title: string;
-  type: 'pdf' | 'video';
-  category: string;
-  size_or_duration: string;
+  video_url: string | null;
+  material_id: number | null;
+  notes: string | null;
 }
 
 export default function StudentDashboard() {
@@ -27,27 +26,28 @@ export default function StudentDashboard() {
   useEffect(() => {
     const fetchSummary = async () => {
       try {
+        const [profileRes, payRes, lessonsRes] = await Promise.all([
+          fetch('/api/student/profile'),
+          fetch('/api/student/payments'),
+          fetch(`/api/student/lessons?t=${Date.now()}`)
+        ]);
 
-        // Profile Data Fetch
-        const res = await fetch('/api/student/profile');
-        const profile = await res.json();
-        
-        // Fetch last payment to show status on dashboard
-        const payRes = await fetch('/api/student/payments');
+        const profile = await profileRes.json();
         const payments = await payRes.json();
-
-        //Lessons Data Fetch
-        const lessonsRes = await fetch('/api/student/lessons');
         const lessonsData = await lessonsRes.json();
-        setLessons(lessonsData.lessons);
-        
+
         if (profile.success) {
           setData({
             full_name: profile.student.full_name,
             student_id: profile.student.student_id,
             grade: profile.student.grade,
+            // Check the status of the most recent payment
             paymentStatus: payments.payments?.[0]?.status || 'no_history'
           });
+        }
+
+        if (lessonsData.success) {
+          setLessons(lessonsData.lessons.slice(0, 8)); 
         }
       } catch (err) {
         console.error("Dashboard sync error", err);
@@ -58,123 +58,114 @@ export default function StudentDashboard() {
     fetchSummary();
   }, []);
 
-  if (loading) return <div className="p-20 text-[#1A5683] font-black animate-pulse">SYNCHRONIZING ATELIER...</div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center font-black text-[#1A5683] animate-pulse italic uppercase tracking-[0.3em]">
+      SYNCHRONIZING ATELIER...
+    </div>
+  );
+
+  // Helper to check if the user has full access
+  const hasAccess = data?.paymentStatus === 'approved';
 
   return (
-    <div className="max-w-7xl mx-auto px-8 py-12">
-
+    <div className="max-w-7xl mx-auto px-8 py-12 select-none">
       {/* Hero Welcome */}
-      <div className="p-4 text-black mb-8 elative overflow-hidden">
+      <div className="p-4 mb-8 relative overflow-hidden">
         <div className="relative z-10">
-
-          {/* Welcome Back Label */}
-          <h4 className="font-medium uppercase tracking-[0.4em] text-[10px] text-slate-500 mb-1">WELCOME BACK</h4>
-
-          {/* Name Heading */}
-          <h1 className="text-4xl font-semibold font-black  font-medium text-slate-700 tracking-tight mb-2">
+          <h4 className="font-bold uppercase tracking-[0.4em] text-[10px] text-slate-400 mb-1">WELCOME BACK</h4>
+          <h1 className="text-4xl font-black text-slate-800 tracking-tight mb-2 italic uppercase">
             Hello, {data?.full_name}
           </h1>
-
-          {/* Student ID*/}
-          <p className="inline-flex items-center px-3 py-1 bg-[#E2E8F0] rounded-md text-black-100 opacity-70 max-w-md text-sm leading-relaxed">
+          <p className="inline-flex items-center px-3 py-1 bg-slate-100 rounded-md text-slate-500 font-bold text-xs tracking-widest uppercase">
             ID: {data?.student_id}
           </p>
         </div>
-        <div className="absolute top-[-20%] right-[-10%] w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
       </div>
 
-
-      {/* Live Class Banner and  Instructor Note */}
+      {/* Live Class & Instructor Note Banner */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
-
-        {/* Live Class Banner */}
-        <div className="lg:col-span-2 bg-[#1A5683] rounded-[2rem] p-10 text-white min-h-[350px] flex flex-col justify-between">
+        <div className="lg:col-span-2 bg-[#1A5683] rounded-[2.5rem] p-10 text-white flex flex-col justify-between shadow-xl shadow-blue-100/50 min-h-[320px]">
           <div>
-                  <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"> 🔴 Live Session Starting Soon</span>
-                  <h2 className="text-4xl font-bold mt-6">Introduction Of Computer</h2>
-                  <p className="text-blue-50 mt-1">Theory Class - Grade {data?.grade}</p>
-                  <p className="text-blue-100 opacity-80 mt-1 mb-3">with Mrs. Dinushika Kalugampitiya</p>
-              </div>
-              <div className="flex items-center gap-4">
-                  <button className="bg-white text-[#1A5683] px-6 py-2.5 rounded-xl font-bold text-sm">Join Live Class</button>
-
-                  {/* Avatars Decoration */}
-                <div className="hidden lg:flex bottom-12 right-12 items-center -space-x-4">
-                  {[1,2,3].map(i => (
-                    <div key={i} className="w-12 h-12 rounded-full border-[3px] border-[#1A5683] bg-slate-200 flex items-center justify-center text-xs text-slate-500 font-black italic">ICT</div>
-                  ))}
-                  <div className="w-12 h-12 rounded-full border-[3px] border-[#1A5683] bg-blue-400 flex items-center justify-center text-[10px] font-black text-white">+24</div>
-            </div>
-              </div>
-              
+            <span className="bg-white/10 border border-white/20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic">🔴 Live Session Starting Soon</span>
+            <h2 className="text-4xl font-black mt-6 italic uppercase tracking-tighter leading-none">Introduction To <br/>Computer</h2>
+            <p className="text-blue-100 font-bold uppercase text-[10px] mt-4 tracking-widest italic opacity-80">with Mrs. Dinushika Kalugampitiya</p>
+          </div>
+          
+          {hasAccess ? (
+             <button className="bg-white text-[#1A5683] w-fit px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-transform active:scale-95 shadow-lg shadow-black/10">
+                Join Live Class
+             </button>
+          ) : (
+            <Link href="/student/payments" className="bg-orange-500 text-white w-fit px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-transform active:scale-95 shadow-lg">
+                Unlock Live Access →
+            </Link>
+          )}
         </div>
 
-        {/* Instructor's Note */}
-        <div className="bg-[#D1D5F9] rounded-[2rem] p-10">
-          <h3 className="text-xl font-bold text-indigo-900 mb-4">Instructor&apos;s Note</h3>
-          <p className="text-black italic text-sm text-slate-600 leading-relaxed">
-                &quot;Remember to review the &apos;Metaphoric
-                  Structures&apos; PDF before today&apos;s session. We
-                  will be deconstructing the early 19th-
-                  century prose in our live workshop.
-                  Looking forward to your creative
-                  insights!&quot;
-              </p>
+        <div className="bg-[#EEF2FF] rounded-[2.5rem] p-10 border border-blue-100 flex flex-col justify-between">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-[#4F46E5] mb-4 italic">Instructor&apos;s Note</h3>
+          <p className="text-slate-600 italic font-bold text-sm leading-relaxed opacity-90">
+            &quot;Remember to review the Hardware Structure PDF before our next session. We will be deconstructing input processing cycles in the live workshop.&quot;
+          </p>
+          <div className="mt-6 flex items-center gap-2">
+             <div className="w-8 h-8 rounded-full bg-blue-200"></div>
+             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">G{data?.grade} Theory</span>
+          </div>
         </div>
-
       </div>
 
+      {/* Dynamic Lessons Container */}
+      <div className="mb-8 flex items-center justify-between">
+         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-400 italic">Recent Sessions & Materials</h2>
+      </div>
 
-      {/* This is container for Previous Lessons.Include 4 cards  */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {lessons.length > 0 ? (
+          lessons.map((lesson) => (
+            <div key={lesson.id} className="bg-white border border-slate-50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
+              <div>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl mb-6 ${lesson.video_url ? 'bg-orange-50' : 'bg-blue-50'}`}>
+                  {lesson.video_url ? '📼' : '📚'}
+                </div>
+                <h3 className="font-black uppercase text-slate-800 text-[13px] leading-tight mb-2 tracking-tight line-clamp-2 italic">
+                  {lesson.title}
+                </h3>
+                <div className="flex items-center gap-2 mb-8">
+                    <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest italic">
+                    {lesson.video_url ? 'Video Session' : 'Lecture Note'}
+                    </p>
+                    {/* Access Indicator Badge */}
+                    {!hasAccess && (
+                        <span className="text-[8px] bg-red-50 text-red-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter italic">Locked</span>
+                    )}
+                </div>
+              </div>
 
-        {/* Card 1: Comparative Literature */}
-        <div className="bg-white border border-gray-100 p-10 rounded-[2.5rem] shadow-sm hover:shadow-md transition">
-          <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-xl mb-6">📚 </div>
-          <h3 className="font-black uppercase text-gray-900 mb-2">Comparative Literature</h3>
-          <p className="text-gray-400 text-xs mb-8">Lecture Notes</p>
-          <Link href="/student/lessons" className="text-[10px] font-black uppercase text-[#1A5683] tracking-widest border-b-2 border-blue-100 pb-1 hover:border-[#1A5683] transition">
-            Download PDF →
-          </Link>
-        </div>
-
-        {/* Card 2: Modern Prose Analysis */}
-        <div className="bg-white border border-gray-100 p-10 rounded-[2.5rem] shadow-sm">
-          <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-xl mb-6">📼</div>
-          <h3 className="font-black uppercase text-gray-900 mb-2">Modern Prose Analysis</h3>
-          <div className="mb-8">
-            <span className={`px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-              data?.paymentStatus === 'approved' ? 'bg-green-50 text-green-600' : 
-              data?.paymentStatus === 'pending' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400'
-            }`}>
-              {data?.paymentStatus?.replace('_', ' ')}
-            </span>
+              {/* DYNAMIC BUTTON LOGIC */}
+              {hasAccess ? (
+                // IF APPROVED: Show Video or PDF
+                lesson.video_url ? (
+                  <Link href={`/student/lessons/${lesson.id}`} className="w-full py-3 bg-[#1A5683] text-white rounded-xl text-[9px] font-black uppercase tracking-widest text-center transition-all hover:bg-slate-900">
+                    Stream Video →
+                  </Link>
+                ) : (
+                  <a href={`/api/admin/content?fileId=${lesson.material_id}`} target="_blank" className="w-full py-3 bg-[#4F46E5] text-white rounded-xl text-[9px] font-black uppercase tracking-widest text-center transition-all hover:bg-slate-900">
+                    Download PDF ↓
+                  </a>
+                )
+              ) : (
+                // IF NOT APPROVED (Pending or No History): Show Payment Button
+                <Link href="/student/payments" className="w-full py-3 bg-slate-100 text-slate-400 rounded-xl text-[9px] font-black uppercase tracking-widest text-center hover:bg-orange-100 hover:text-orange-600 transition-colors">
+                  {data?.paymentStatus === 'pending' ? 'Verification Pending...' : 'Add Payment to View'}
+                </Link>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="col-span-4 text-center py-20 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
+             <p className="text-slate-300 font-black uppercase italic tracking-widest text-xs">No lessons available for your grade yet</p>
           </div>
-          <Link href="/student/payments" className="text-[10px] font-black uppercase text-[#1A5683] tracking-widest border-b-2 border-blue-100 pb-1 hover:border-[#1A5683] transition">
-            Stream  MP4 →
-          </Link>
-        </div>
-
-        {/* Card 3: Essay Writing Frameworks */}
-        <div className="bg-white border border-gray-100 p-10 rounded-[2.5rem] shadow-sm">
-          <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-xl mb-6">📝</div>
-          <h3 className="font-black uppercase text-gray-900 mb-2">Essay Writing Frameworks</h3>
-          <p className="text-gray-400 text-xs mb-8">Study Guide</p>
-          <a href="https://wa.me/your-number" target="_blank" className="text-[10px] font-black uppercase text-[#1A5683] tracking-widest border-b-2 border-blue-100 pb-1 hover:border-[#1A5683] transition">
-            Download PDF →
-          </a>
-        </div>
-
-        {/* Card 4: Creative writing Workshop */}
-        <div className="bg-white border border-gray-100 p-10 rounded-[2.5rem] shadow-sm">
-          <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-xl mb-6">✍️</div>
-          <h3 className="font-black uppercase text-gray-900 mb-2">Creative writing Workshop</h3>
-          <p className="text-gray-400 text-xs mb-8">Session Highlights</p>
-          <a href="https://wa.me/your-number" target="_blank" className="text-[10px] font-black uppercase text-[#1A5683] tracking-widest border-b-2 border-blue-100 pb-1 hover:border-[#1A5683] transition">
-            Stream  MP4  →
-          </a>
-        </div>
-
+        )}
       </div>
     </div>
   );
